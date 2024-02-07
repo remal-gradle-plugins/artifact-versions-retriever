@@ -3,7 +3,7 @@
 buildscript {
     String rootGroupId = project.ext.rootGroupId = "name.remal.gradle-plugins.${rootProject.name}"
     String rootArtifactId = project.ext.rootArtifactId = rootProject.name
-    String rootSnapshotVersion = project.ext.rootSnapshotVersion = '2-SNAPSHOT'
+    String rootSnapshotVersion = project.ext.rootSnapshotVersion = '0-SNAPSHOT'
     dependencies {
         //classpath("$rootGroupId:$rootArtifactId:$rootSnapshotVersion") { version { strictly(rootSnapshotVersion) } }
         classpath 'name.remal.gradle-plugins.toolkit:build-logic:0.63.9'
@@ -32,10 +32,10 @@ dependencies {
 
 gradlePlugin {
     plugins {
-        'name.remal.template-plugin' {
-            id = 'name.remal.template-plugin'
-            implementationClass = 'name.remal.gradle_plugins.template.TemplatePlugin'
-            displayName = 'Template plugin'
+        'name.remal.dependency-versions-retriever' {
+            id = 'name.remal.dependency-versions-retriever'
+            implementationClass = 'name.remal.gradle_plugins.dependency_versions_retriever.DependencyVersionsRetrieverPlugin'
+            displayName = 'Dependency versions retriever'
             description = property('repository-description')
         }
     }
