@@ -2,3 +2,8 @@
 # Do not modify it yourself unless you know what you are doing.
 
 org.ow2.asm:asm-bom:9.6:@pom
+zzzz-classes-that-rely-on-gradle-internal-api:name.remal.gradle_plugins.dependency_versions_retriever.internal._relocated.name.remal.gradle_plugins.toolkit.DebugUtils$1:73a0170f1ad981c425870a1e8f8ef98c5cf8a48e925fa9c034eb64a801437677
+zzzz-classes-that-rely-on-gradle-internal-api:name.remal.gradle_plugins.dependency_versions_retriever.internal._relocated.name.remal.gradle_plugins.toolkit.DebugUtils$IfDebugEnabled:71168f9aea5560a20e5d8656992dd422c751f5d8d4eec9ab5f2c43a0bb84111
+zzzz-classes-that-rely-on-gradle-internal-api:name.remal.gradle_plugins.dependency_versions_retriever.internal._relocated.name.remal.gradle_plugins.toolkit.DebugUtils:1946cf99354e4d5da8abd4d0800b18a4f086a2a395e9eabeb3ae697f6e3bbfd3
+zzzz-classes-that-rely-on-gradle-internal-api:name.remal.gradle_plugins.dependency_versions_retriever.internal._relocated.name.remal.gradle_plugins.toolkit.Version:f847fa2c805bc4196a805e207bd4b11a972cb55782dd18e1748b1f5bef676173
+zzzz-classes-that-rely-on-gradle-internal-api:name.remal.gradle_plugins.dependency_versions_retriever.internal._relocated.name.remal.gradle_plugins.toolkit.reflection.ReflectionUtils:f81e9340ce50acc7c9f7ea1696281a3f11a12524b09197d590bb3102c6a08afc
