@@ -32,10 +32,10 @@ dependencies {
 
 gradlePlugin {
     plugins {
-        'name.remal.dependency-versions-retriever' {
-            id = 'name.remal.dependency-versions-retriever'
-            implementationClass = 'name.remal.gradle_plugins.dependency_versions_retriever.DependencyVersionsRetrieverPlugin'
-            displayName = 'Dependency versions retriever'
+        'name.remal.artifact-versions-retriever' {
+            id = 'name.remal.artifact-versions-retriever'
+            implementationClass = 'name.remal.gradle_plugins.artifact_versions_retriever.ArtifactVersionsRetrieverPlugin'
+            displayName = 'Artifact versions retriever'
             description = property('repository-description')
         }
     }
