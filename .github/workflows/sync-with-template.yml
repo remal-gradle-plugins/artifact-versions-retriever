@@ -10,7 +10,7 @@ on:
     - 'main'
     - 'master'
   schedule:
-  - cron: '10 * * * *' # sync-with-template: adjust
+  - cron: '11 * * * *' # sync-with-template: adjust
   workflow_dispatch: { }
 
 defaults:
