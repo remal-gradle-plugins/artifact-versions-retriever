@@ -1,7 +1,21 @@
 {
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
-  extends: ["github>remal-gradle-plugins/plugins-renovate-config:base"],
+  extends: [
+    "github>remal-gradle-plugins/plugins-renovate-config:base"
+  ],
 
   // $$$sync-with-template-modifiable: local $$$
+  packageRules: [
+    {
+      matchCategories: [
+        "java"
+      ],
+      matchPackageNames: [
+        "org.eclipse.jetty:jetty-servlet"
+      ],
+      matchCurrentVersion: "(0,10.9999)",
+      allowedVersions: "(0,10.9999)",
+    }
+  ],
   // $$$sync-with-template-modifiable-end$$$
 }

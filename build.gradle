@@ -26,17 +26,118 @@ apply plugin: 'name.remal.toolkit.build-logic'
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 apply plugin: 'java-gradle-plugin'
-
-dependencies {
-}
+apply plugin: 'name.remal.generate-sources'
 
 gradlePlugin {
     plugins {
-        'name.remal.artifact-versions-retriever' {
-            id = 'name.remal.artifact-versions-retriever'
-            implementationClass = 'name.remal.gradle_plugins.artifact_versions_retriever.ArtifactVersionsRetrieverPlugin'
-            displayName = 'Artifact versions retriever'
+        'name.remal.versions-retriever' {
+            id = 'name.remal.versions-retriever'
+            implementationClass = 'name.remal.gradle_plugins.versions_retriever.VersionsRetrieverPlugin'
+            displayName = 'Previous version retriever'
             description = property('repository-description')
+        }
+    }
+}
+
+testSourceSets.create('integrationTest')
+
+String jgitVersion = "6.8.0.202311291450-r"
+
+configurations.create('jgit') { conf ->
+    conf.canBeResolved = true
+    conf.canBeConsumed = false
+    conf.description = "JGit dependencies"
+    configurations.optional.extendsFrom(conf)
+}
+
+dependencies {
+    jgit "org.eclipse.jgit:org.eclipse.jgit:$jgitVersion"
+    jgit "org.eclipse.jgit:org.eclipse.jgit.ssh.apache:$jgitVersion"
+
+    integrationTestImplementation "org.eclipse.jgit:org.eclipse.jgit.http.server:$jgitVersion"
+    integrationTestImplementation 'org.eclipse.jetty:jetty-servlet:10.0.20'
+}
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+Closure addDependenciesGenerator = { String packageName, String feature, Configuration configuration ->
+    tasks.named('generateJava') {
+        classFile(packageName, "${feature}Dependency") {
+            it.writePackage()
+            it.println("")
+            it.writeImport("lombok.Builder")
+            it.writeImport("lombok.Value")
+            it.println("")
+            it.println("@Value")
+            it.println("@Builder")
+            it.writeBlock("class ${it.simpleName}") {
+                it.println("String group;")
+                it.println("String name;")
+                it.println("String version;")
+            }
+        }
+
+        classFile(packageName, "${feature}Dependencies") {
+            it.writePackage()
+            it.println("")
+            it.writeStaticImport("lombok.AccessLevel", "PRIVATE")
+            it.println("")
+            it.writeImport("com.google.common.collect.ImmutableMap")
+            it.writeImport("java.util.Map")
+            it.writeImport("lombok.NoArgsConstructor")
+            it.writeImport("lombok.val")
+            it.println("")
+            it.println("@NoArgsConstructor(access = PRIVATE)")
+            it.writeBlock("abstract class ${it.simpleName}") {
+                it.println("")
+                it.println("private static final Map<String, ${feature}Dependency> MAPPING = ImmutableMap.<String, ${feature}Dependency>builder()")
+                configuration.resolvedConfiguration.lenientConfiguration.firstLevelModuleDependencies
+                    .findAll { !it.moduleArtifacts.isEmpty() }
+                    .forEach { dep ->
+                        it.println("    .put(\"${it.escapeJava(dep.moduleGroup)}:${it.escapeJava(dep.moduleName)}\", ${feature}Dependency.builder()")
+                        it.println("        .group(\"${it.escapeJava(dep.moduleGroup)}\")")
+                        it.println("        .name(\"${it.escapeJava(dep.moduleName)}\")")
+                        it.println("        .version(\"${it.escapeJava(dep.moduleVersion)}\")")
+                        it.println("        .build()")
+                        it.println("    )")
+                    }
+                it.println("    .build();")
+
+                it.println("")
+                it.writeBlock("public static Map<String, ${feature}Dependency> get${feature}Dependencies()") {
+                    it.println("return MAPPING;")
+                }
+
+                it.println("")
+                it.writeBlock("public static ${feature}Dependency get${feature}Dependency(String id)") {
+                    it.println("val dependency = get${feature}Dependencies().get(id);")
+                    it.writeBlock("if (dependency == null)") {
+                        it.println("throw new IllegalStateException(\"${feature} dependency is not registered: \" + id);")
+                    }
+                    it.println("return dependency;")
+                }
+            }
+        }
+    }
+}
+
+addDependenciesGenerator('name.remal.gradle_plugins.versions_retriever.git', 'JGit', configurations.jgit)
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+List<Map<String, String>> loggingExclusions = [
+    [group: 'org.slf4j', module: '*'],
+    [group: 'log4j', module: 'log4j'],
+    [group: 'commons-logging', module: 'commons-logging'],
+    [group: 'org.springframework', module: 'spring-jcl'],
+]
+sourceSets.configureEach { sourceSet ->
+    Collection<String> configurationNames = project.getSourceSetConfigurationNames(sourceSet)
+    configurations.matching { configurationNames.contains(it.name) }.configureEach { conf ->
+        conf.dependencies.withType(ExternalModuleDependency).configureEach { dep ->
+            if (dep.group != 'name.remal.gradle-api') {
+                loggingExclusions.forEach { dep.exclude(it) }
+            }
         }
     }
 }
