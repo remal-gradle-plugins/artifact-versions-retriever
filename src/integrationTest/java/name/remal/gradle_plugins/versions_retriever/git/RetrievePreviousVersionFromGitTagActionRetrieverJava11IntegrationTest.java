@@ -15,7 +15,6 @@ import javax.annotation.Nullable;
 import lombok.SneakyThrows;
 import lombok.val;
 import name.remal.gradle_plugins.toolkit.SneakyThrowUtils.SneakyThrowsConsumer;
-import name.remal.gradle_plugins.toolkit.testkit.MinSupportedJavaVersion;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.servlet.ServletHandler;
@@ -32,8 +31,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-@MinSupportedJavaVersion(11)
-class RetrievePreviousVersionFromGitTagActionRetrieverIntegrationTest {
+class RetrievePreviousVersionFromGitTagActionRetrieverJava11IntegrationTest {
 
     final RetrievePreviousVersionFromGitTagActionRetriever retriever =
         new RetrievePreviousVersionFromGitTagActionRetriever(null);

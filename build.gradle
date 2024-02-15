@@ -39,8 +39,6 @@ gradlePlugin {
     }
 }
 
-testSourceSets.create('integrationTest')
-
 String jgitVersion = "6.8.0.202311291450-r"
 
 configurations.create('jgit') { conf ->
@@ -53,9 +51,32 @@ configurations.create('jgit') { conf ->
 dependencies {
     jgit "org.eclipse.jgit:org.eclipse.jgit:$jgitVersion"
     jgit "org.eclipse.jgit:org.eclipse.jgit.ssh.apache:$jgitVersion"
+}
 
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+testSourceSets.create('integrationTest')
+
+dependencies {
     integrationTestImplementation "org.eclipse.jgit:org.eclipse.jgit.http.server:$jgitVersion"
     integrationTestImplementation 'org.eclipse.jetty:jetty-servlet:10.0.20'
+}
+
+tasks.named('integrationTest', Test) {
+    int currentJavaVersion = project.javaRuntimeVersion.majorVersion.toInteger()
+    inputs.property('currentJavaVersion', currentJavaVersion)
+    int maxJavaVersion = JavaVersion.VERSION_HIGHER.majorVersion.toInteger()
+    inputs.property('maxJavaVersion', maxJavaVersion)
+    exclude { FileTreeElement element ->
+        if (element.directory) return false
+        for (int javaVersion = currentJavaVersion + 1; javaVersion <= maxJavaVersion; ++javaVersion) {
+            if (element.name.matches(".*Java${javaVersion}\\D.*")) {
+                logger.quiet("Excluding ${element.name} tests, as the current runtime Java version is less than ${javaVersion}")
+                return true
+            }
+        }
+        return false
+    }
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
