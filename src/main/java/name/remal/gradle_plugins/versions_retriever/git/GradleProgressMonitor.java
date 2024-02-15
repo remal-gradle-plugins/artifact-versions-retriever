@@ -3,6 +3,7 @@ package name.remal.gradle_plugins.versions_retriever.git;
 import static java.lang.Math.floor;
 import static java.lang.System.nanoTime;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static name.remal.gradle_plugins.versions_retriever.git.GitUtils.GIT_DEFAULT_LOG_LEVEL;
 
 import javax.annotation.Nullable;
 import lombok.CustomLog;
@@ -22,7 +23,7 @@ class GradleProgressMonitor implements ProgressMonitor {
     private final LogLevel logLevel;
 
     public GradleProgressMonitor(@Nullable BuildCancellationToken buildCancellationToken) {
-        this(buildCancellationToken, LogLevel.INFO);
+        this(buildCancellationToken, GIT_DEFAULT_LOG_LEVEL);
     }
 
 

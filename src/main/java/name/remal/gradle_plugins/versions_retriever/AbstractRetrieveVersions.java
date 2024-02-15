@@ -2,6 +2,7 @@ package name.remal.gradle_plugins.versions_retriever;
 
 import static com.google.common.base.CaseFormat.LOWER_CAMEL;
 import static com.google.common.base.CaseFormat.LOWER_HYPHEN;
+import static name.remal.gradle_plugins.toolkit.ObjectUtils.doNotInline;
 import static name.remal.gradle_plugins.toolkit.PathUtils.createParentDirectories;
 import static name.remal.gradle_plugins.toolkit.PathUtils.deleteRecursively;
 import static name.remal.gradle_plugins.toolkit.PathUtils.normalizePath;
@@ -15,7 +16,11 @@ import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 
-public abstract class AbstractRetrievePreviousVersion extends DefaultTask {
+public abstract class AbstractRetrieveVersions extends DefaultTask {
+
+    public static final String RETRIEVED_VERSION_PROPERTY = doNotInline("version");
+    public static final String RETRIEVED_COMMIT_HASH_PROPERTY = doNotInline("commit.hash");
+
 
     @OutputFile
     public abstract RegularFileProperty getResultPropertiesFile();

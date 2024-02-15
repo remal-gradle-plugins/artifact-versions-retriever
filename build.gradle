@@ -70,7 +70,7 @@ Closure addDependenciesGenerator = { String packageName, String feature, Configu
             it.println("")
             it.println("@Value")
             it.println("@Builder")
-            it.writeBlock("class ${it.simpleName}") {
+            it.writeBlock("public class ${it.simpleName}") {
                 it.println("String group;")
                 it.println("String name;")
                 it.println("String version;")
@@ -88,7 +88,7 @@ Closure addDependenciesGenerator = { String packageName, String feature, Configu
             it.writeImport("lombok.val")
             it.println("")
             it.println("@NoArgsConstructor(access = PRIVATE)")
-            it.writeBlock("abstract class ${it.simpleName}") {
+            it.writeBlock("public abstract class ${it.simpleName}") {
                 it.println("")
                 it.println("private static final Map<String, ${feature}Dependency> MAPPING = ImmutableMap.<String, ${feature}Dependency>builder()")
                 configuration.resolvedConfiguration.lenientConfiguration.firstLevelModuleDependencies
@@ -127,9 +127,6 @@ addDependenciesGenerator('name.remal.gradle_plugins.versions_retriever.git', 'JG
 
 List<Map<String, String>> loggingExclusions = [
     [group: 'org.slf4j', module: '*'],
-    [group: 'log4j', module: 'log4j'],
-    [group: 'commons-logging', module: 'commons-logging'],
-    [group: 'org.springframework', module: 'spring-jcl'],
 ]
 sourceSets.configureEach { sourceSet ->
     Collection<String> configurationNames = project.getSourceSetConfigurationNames(sourceSet)

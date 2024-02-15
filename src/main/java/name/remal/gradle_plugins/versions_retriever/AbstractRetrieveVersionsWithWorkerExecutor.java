@@ -1,7 +1,7 @@
 package name.remal.gradle_plugins.versions_retriever;
 
-import static name.remal.gradle_plugins.versions_retriever.VersionsRetrieverForkOptions.IS_FORK_ENABLED_DEFAULT;
 import static name.remal.gradle_plugins.toolkit.JavaLauncherUtils.getJavaLauncherProviderFor;
+import static name.remal.gradle_plugins.versions_retriever.VersionsRetrieverForkOptions.IS_FORK_ENABLED_DEFAULT;
 
 import com.google.errorprone.annotations.ForOverride;
 import javax.inject.Inject;
@@ -18,7 +18,7 @@ import org.gradle.jvm.toolchain.JavaLauncher;
 import org.gradle.workers.WorkQueue;
 import org.gradle.workers.WorkerExecutor;
 
-public abstract class AbstractRetrievePreviousVersionWithWorkerExecutor extends AbstractRetrievePreviousVersion {
+public abstract class AbstractRetrieveVersionsWithWorkerExecutor extends AbstractRetrieveVersions {
 
     @Classpath
     @InputFiles
