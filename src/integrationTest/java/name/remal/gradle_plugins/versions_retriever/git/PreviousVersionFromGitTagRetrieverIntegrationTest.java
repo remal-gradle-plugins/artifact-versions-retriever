@@ -6,9 +6,6 @@ import static java.util.Collections.singletonList;
 import static name.remal.gradle_plugins.toolkit.ObjectUtils.defaultValue;
 import static name.remal.gradle_plugins.toolkit.PathUtils.deleteRecursively;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.CALLS_REAL_METHODS;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
 
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -34,9 +31,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-class RetrievePreviousVersionFromGitTagActionIntegrationTest {
+class PreviousVersionFromGitTagRetrieverIntegrationTest {
 
-    RetrievePreviousVersionFromGitTagAction action;
+    final PreviousVersionFromGitTagRetriever retriever = new PreviousVersionFromGitTagRetriever(null);
 
     @TempDir
     Path repositoryPath;
@@ -50,9 +47,6 @@ class RetrievePreviousVersionFromGitTagActionIntegrationTest {
 
     @BeforeEach
     void beforeEach() throws Throwable {
-        action = mock(RetrievePreviousVersionFromGitTagAction.class, CALLS_REAL_METHODS);
-        doThrow(new UnsupportedOperationException("Test this method in functional tests")).when(action).execute();
-
         serverRepository = FileRepositoryBuilder.create(serverRepositoryPath.resolve(".git").toFile());
         serverRepository.create();
         configureRepositoryConfig(serverRepository);
@@ -104,7 +98,7 @@ class RetrievePreviousVersionFromGitTagActionIntegrationTest {
 
         cloneRepository();
 
-        val refVersion = action.retrieveImpl(
+        val refVersion = retriever.retrieve(
             repositoryPath,
             singletonList(Pattern.compile("ver-(?<version>\\d+)"))
         );
@@ -136,7 +130,7 @@ class RetrievePreviousVersionFromGitTagActionIntegrationTest {
             git.tag().setObjectId(verCommitQwerty.get()).setName("ver-qwerty").call();
         });
 
-        val refVersion = action.retrieveImpl(
+        val refVersion = retriever.retrieve(
             repositoryPath,
             singletonList(Pattern.compile("ver-(?<version>\\d+)"))
         );
@@ -165,7 +159,7 @@ class RetrievePreviousVersionFromGitTagActionIntegrationTest {
 
         cloneRepositoryPartially(1);
 
-        val refVersion = action.retrieveImpl(
+        val refVersion = retriever.retrieve(
             repositoryPath,
             singletonList(Pattern.compile("ver-(?<version>\\d+)"))
         );
@@ -202,7 +196,7 @@ class RetrievePreviousVersionFromGitTagActionIntegrationTest {
 
         cloneRepository();
 
-        val refVersion = action.retrieveImpl(
+        val refVersion = retriever.retrieve(
             repositoryPath,
             singletonList(Pattern.compile("ver-(?<version>\\d+)"))
         );
@@ -242,6 +236,7 @@ class RetrievePreviousVersionFromGitTagActionIntegrationTest {
     }
 
     @SneakyThrows
+    @SuppressWarnings("HttpUrlsUsage")
     void cloneRepositoryPartially(@Nullable Integer depth) {
         deleteRecursively(repositoryPath);
         val clone = new CloneCommand()
