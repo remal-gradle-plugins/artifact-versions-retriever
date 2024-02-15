@@ -65,12 +65,17 @@ dependencies {
 tasks.named('integrationTest', Test) {
     int currentJavaVersion = project.javaRuntimeVersion.majorVersion.toInteger()
     inputs.property('currentJavaVersion', currentJavaVersion)
-    int maxJavaVersion = JavaVersion.VERSION_HIGHER.majorVersion.toInteger()
+    println "currentJavaVersion: $currentJavaVersion"
+    int maxJavaVersion = JavaVersion.VERSION_HIGHER.majorVersion.toInteger() + 10
     inputs.property('maxJavaVersion', maxJavaVersion)
+    println "maxJavaVersion: $maxJavaVersion"
     exclude { FileTreeElement element ->
         if (element.directory) return false
+        println element.name
         for (int javaVersion = currentJavaVersion + 1; javaVersion <= maxJavaVersion; ++javaVersion) {
-            if (element.name.matches(".*Java${javaVersion}\\D.*")) {
+            println "  javaVersion: $javaVersion"
+            println "  matches: ${element.name.matches(".*Java${javaVersion}(\\D.*)?")}"
+            if (element.name.matches(".*Java${javaVersion}(\\D.*)?")) {
                 logger.quiet("Excluding ${element.name} tests, as the current runtime Java version is less than ${javaVersion}")
                 return true
             }
