@@ -46,7 +46,7 @@ import org.gradle.initialization.BuildCancellationToken;
 @CustomLog
 class PreviousVersionFromGitTagRetriever {
 
-    private static final Duration FETCH_TIMEOUT = Duration.ofMinutes(15);
+    private static final Duration FETCH_TIMEOUT = Duration.ofHours(1);
 
     @Nullable
     private final BuildCancellationToken buildCancellationToken;
