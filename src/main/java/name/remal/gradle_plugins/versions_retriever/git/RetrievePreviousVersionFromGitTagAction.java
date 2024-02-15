@@ -1,5 +1,6 @@
 package name.remal.gradle_plugins.versions_retriever.git;
 
+import static java.nio.file.Files.write;
 import static java.util.stream.Collectors.toList;
 import static lombok.AccessLevel.PUBLIC;
 import static name.remal.gradle_plugins.toolkit.PathUtils.normalizePath;
@@ -14,6 +15,7 @@ import java.util.regex.Pattern;
 import javax.inject.Inject;
 import lombok.CustomLog;
 import lombok.NoArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.val;
 import org.gradle.api.GradleException;
 import org.gradle.workers.WorkAction;
@@ -25,8 +27,11 @@ abstract class RetrievePreviousVersionFromGitTagAction
     implements WorkAction<RetrievePreviousVersionFromGitTagActionParams> {
 
     @Override
+    @SneakyThrows
     public void execute() {
         val params = getParameters();
+        val resultPropertiesPath = normalizePath(params.getResultPropertiesFile().get().getAsFile().toPath());
+
         val projectDir = params.getProjectDirectory().getAsFile().get();
         val repositoryPath = findGitRepositoryRootFor(projectDir.toPath());
         if (repositoryPath == null) {
@@ -35,6 +40,7 @@ abstract class RetrievePreviousVersionFromGitTagAction
                 "Git repository root dir couldn't be found for {}",
                 projectDir
             );
+            write(resultPropertiesPath, new byte[0]);
             return;
         }
 
@@ -44,8 +50,6 @@ abstract class RetrievePreviousVersionFromGitTagAction
         if (tagPatterns.isEmpty()) {
             throw new GradleException("Tag patterns can't be empty");
         }
-
-        val resultPropertiesPath = normalizePath(params.getResultPropertiesFile().get().getAsFile().toPath());
 
         val retriever = new RetrievePreviousVersionFromGitTagActionRetriever(null);
         val refVersion = retriever.retrieve(repositoryPath, tagPatterns);

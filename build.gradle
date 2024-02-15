@@ -1,3 +1,10 @@
+import static org.objectweb.asm.ClassReader.SKIP_CODE
+import static org.objectweb.asm.ClassReader.SKIP_DEBUG
+import static org.objectweb.asm.ClassReader.SKIP_FRAMES
+
+import org.objectweb.asm.ClassReader
+import org.objectweb.asm.tree.ClassNode
+
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 buildscript {
@@ -62,22 +69,43 @@ dependencies {
     integrationTestImplementation 'org.eclipse.jetty:jetty-servlet:10.0.20'
 }
 
-tasks.named('integrationTest', Test) {
-    int currentJavaVersion = project.javaRuntimeVersion.majorVersion.toInteger()
-    inputs.property('currentJavaVersion', currentJavaVersion)
-    println "currentJavaVersion: $currentJavaVersion"
-    int maxJavaVersion = JavaVersion.VERSION_HIGHER.majorVersion.toInteger() + 10
-    inputs.property('maxJavaVersion', maxJavaVersion)
-    println "maxJavaVersion: $maxJavaVersion"
+tasks.named('integrationTest', Test) { // TODO: remove it
     exclude { FileTreeElement element ->
         if (element.directory) return false
-        println element.name
-        for (int javaVersion = currentJavaVersion + 1; javaVersion <= maxJavaVersion; ++javaVersion) {
-            println "  javaVersion: $javaVersion"
-            println "  matches: ${element.name.matches(".*Java${javaVersion}(\\D.*)?")}"
-            if (element.name.matches(".*Java${javaVersion}(\\D.*)?")) {
-                logger.quiet("Excluding ${element.name} tests, as the current runtime Java version is less than ${javaVersion}")
-                return true
+        if (element.name.endsWith(".class")) {
+            ClassNode classNode = new ClassNode()
+            element.open().withCloseable {
+                new ClassReader(it).accept(classNode, SKIP_CODE | SKIP_DEBUG | SKIP_FRAMES)
+            }
+            Integer minSupportedJavaVersion = classNode.visibleAnnotations
+                ?.find { it.desc == 'Lname/remal/gradle_plugins/toolkit/testkit/MinSupportedJavaVersion;' }
+                ?.with {
+                    for (int i = 0; i < it.values.size() - 1; i += 2) {
+                        if (it.values[i] == 'value' && it.values[i + 1] instanceof Integer) {
+                            return it.values[i + 1]
+                        }
+                    }
+                    return null
+                }
+            if (minSupportedJavaVersion != null) {
+                if (project.javaRuntimeVersion.majorVersion.toInteger() < minSupportedJavaVersion) {
+                    return true
+                }
+            }
+            Integer maxSupportedJavaVersion = classNode.visibleAnnotations
+                ?.find { it.desc == 'Lname/remal/gradle_plugins/toolkit/testkit/MaxSupportedJavaVersion;' }
+                ?.with {
+                    for (int i = 0; i < it.values.size() - 1; i += 2) {
+                        if (it.values[i] == 'value' && it.values[i + 1] instanceof Integer) {
+                            return it.values[i + 1]
+                        }
+                    }
+                    return null
+                }
+            if (maxSupportedJavaVersion != null) {
+                if (project.javaRuntimeVersion.majorVersion.toInteger() > maxSupportedJavaVersion) {
+                    return true
+                }
             }
         }
         return false
@@ -152,8 +180,8 @@ addDependenciesGenerator('name.remal.gradle_plugins.versions_retriever.git', 'JG
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-List<Map<String, String>> loggingExclusions = [
-    [group: 'org.slf4j', module: '*'],
+List<Map<String, String>> loggingExclusions = [ // TODO: remove it
+                                                [group: 'org.slf4j', module: '*'],
 ]
 sourceSets.configureEach { sourceSet ->
     Collection<String> configurationNames = project.getSourceSetConfigurationNames(sourceSet)

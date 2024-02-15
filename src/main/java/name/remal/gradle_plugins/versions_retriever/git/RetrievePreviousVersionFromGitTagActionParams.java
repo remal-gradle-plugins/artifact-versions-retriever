@@ -7,10 +7,10 @@ import org.gradle.workers.WorkParameters;
 
 interface RetrievePreviousVersionFromGitTagActionParams extends WorkParameters {
 
+    RegularFileProperty getResultPropertiesFile();
+
     DirectoryProperty getProjectDirectory();
 
     ListProperty<String> getTagPatterns();
-
-    RegularFileProperty getResultPropertiesFile();
 
 }

@@ -12,9 +12,9 @@ public abstract class RetrievePreviousVersionFromGitTag extends AbstractRetrieve
 
     protected void retrieveImpl() {
         createWorkQueue().submit(RetrievePreviousVersionFromGitTagAction.class, params -> {
+            params.getResultPropertiesFile().set(getResultPropertiesFile());
             params.getProjectDirectory().set(getProjectLayout().getProjectDirectory());
             params.getTagPatterns().set(getTagPatterns());
-            params.getResultPropertiesFile().set(getResultPropertiesFile());
         });
     }
 

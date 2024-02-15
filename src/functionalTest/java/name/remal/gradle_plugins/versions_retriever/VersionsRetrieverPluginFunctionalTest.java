@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import lombok.RequiredArgsConstructor;
 import name.remal.gradle_plugins.toolkit.testkit.functional.GradleProject;
 import name.remal.gradle_plugins.versions_retriever.git.RetrievePreviousVersionFromGitTag;
-import org.eclipse.jgit.api.Git;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -31,8 +30,6 @@ class VersionsRetrieverPluginFunctionalTest {
             });
             build.registerDefaultTask("retrieveFromTag");
         });
-
-        Git.init().setDirectory(project.getProjectDir()).call().close();
 
         project.assertBuildSuccessfully();
 
