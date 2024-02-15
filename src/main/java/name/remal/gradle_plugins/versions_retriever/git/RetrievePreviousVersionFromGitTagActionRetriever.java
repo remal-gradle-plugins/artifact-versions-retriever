@@ -18,7 +18,6 @@ import static org.eclipse.jgit.revwalk.RevSort.TOPO_KEEP_BRANCH_TOGETHER;
 
 import com.google.common.annotations.VisibleForTesting;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,9 +43,7 @@ import org.gradle.initialization.BuildCancellationToken;
 
 @RequiredArgsConstructor
 @CustomLog
-class PreviousVersionFromGitTagRetriever {
-
-    private static final Duration FETCH_TIMEOUT = Duration.ofHours(1);
+class RetrievePreviousVersionFromGitTagActionRetriever {
 
     @Nullable
     private final BuildCancellationToken buildCancellationToken;
@@ -91,7 +88,7 @@ class PreviousVersionFromGitTagRetriever {
             .setRecurseSubmodules(FetchRecurseSubmodulesMode.NO)
             .setRemote(fetchRemoteName)
             .setProgressMonitor(new GradleProgressMonitor(buildCancellationToken))
-            .setTimeout(toIntExact(FETCH_TIMEOUT.getSeconds()))
+            .setTimeout(toIntExact(GitUtils.FETCH_TIMEOUT.getSeconds()))
             .call();
 
         val repository = git.getRepository();
@@ -122,7 +119,7 @@ class PreviousVersionFromGitTagRetriever {
                 .setRecurseSubmodules(FetchRecurseSubmodulesMode.NO)
                 .setRemote(fetchRemoteName)
                 .setProgressMonitor(new GradleProgressMonitor(buildCancellationToken))
-                .setTimeout(toIntExact(FETCH_TIMEOUT.getSeconds()))
+                .setTimeout(toIntExact(GitUtils.FETCH_TIMEOUT.getSeconds()))
                 .call();
 
             commitVersion = getPreviousCommitVersion(repository, objectIdVersions);
@@ -140,7 +137,7 @@ class PreviousVersionFromGitTagRetriever {
                 .setRecurseSubmodules(FetchRecurseSubmodulesMode.NO)
                 .setRemote(fetchRemoteName)
                 .setProgressMonitor(new GradleProgressMonitor(buildCancellationToken))
-                .setTimeout(toIntExact(FETCH_TIMEOUT.getSeconds()))
+                .setTimeout(toIntExact(GitUtils.FETCH_TIMEOUT.getSeconds()))
                 .call();
 
             commitVersion = getPreviousCommitVersion(repository, objectIdVersions);
@@ -179,7 +176,7 @@ class PreviousVersionFromGitTagRetriever {
             for (val commit : revWalk) {
                 val commitVersions = objectIdVersions.get(commit.getId());
                 if (isNotEmpty(commitVersions)) {
-                    return new GitRefVersion(commitVersions.last(), commit.getId());
+                    return new GitRefVersion(commitVersions.last().toString(), commit.getId().getName());
                 }
             }
         }

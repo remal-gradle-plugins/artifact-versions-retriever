@@ -47,13 +47,13 @@ abstract class RetrievePreviousVersionFromGitTagAction
 
         val resultPropertiesPath = normalizePath(params.getResultPropertiesFile().get().getAsFile().toPath());
 
-        val retriever = new PreviousVersionFromGitTagRetriever(null);
+        val retriever = new RetrievePreviousVersionFromGitTagActionRetriever(null);
         val refVersion = retriever.retrieve(repositoryPath, tagPatterns);
 
         val resultProperties = new Properties();
         if (refVersion != null) {
-            resultProperties.setProperty(RETRIEVED_VERSION_PROPERTY, refVersion.getVersion().toString());
-            resultProperties.setProperty(RETRIEVED_COMMIT_HASH_PROPERTY, refVersion.getObjectId().toString());
+            resultProperties.setProperty(RETRIEVED_VERSION_PROPERTY, refVersion.getVersion());
+            resultProperties.setProperty(RETRIEVED_COMMIT_HASH_PROPERTY, refVersion.getObjectId());
         }
         storeProperties(resultProperties, resultPropertiesPath);
     }

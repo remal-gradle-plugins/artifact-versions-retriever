@@ -62,6 +62,7 @@ dependencies {
 
 Closure addDependenciesGenerator = { String packageName, String feature, Configuration configuration ->
     tasks.named('generateJava') {
+        inputs.files(configuration).withNormalizer(ClasspathNormalizer).optional().withPropertyName("configuration:${configuration.name}")
         classFile(packageName, "${feature}Dependency") {
             it.writePackage()
             it.println("")

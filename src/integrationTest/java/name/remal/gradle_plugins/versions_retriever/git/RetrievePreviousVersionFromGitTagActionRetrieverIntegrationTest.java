@@ -15,6 +15,7 @@ import javax.annotation.Nullable;
 import lombok.SneakyThrows;
 import lombok.val;
 import name.remal.gradle_plugins.toolkit.SneakyThrowUtils.SneakyThrowsConsumer;
+import name.remal.gradle_plugins.toolkit.testkit.MinSupportedJavaVersion;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.servlet.ServletHandler;
@@ -31,9 +32,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-class PreviousVersionFromGitTagRetrieverIntegrationTest {
+@MinSupportedJavaVersion(11)
+class RetrievePreviousVersionFromGitTagActionRetrieverIntegrationTest {
 
-    final PreviousVersionFromGitTagRetriever retriever = new PreviousVersionFromGitTagRetriever(null);
+    final RetrievePreviousVersionFromGitTagActionRetriever retriever =
+        new RetrievePreviousVersionFromGitTagActionRetriever(null);
 
     @TempDir
     Path repositoryPath;
@@ -104,10 +107,9 @@ class PreviousVersionFromGitTagRetrieverIntegrationTest {
         );
         assertThat(refVersion).as("refVersion").isNotNull();
         assertThat(refVersion.getVersion()).as("version")
-            .asString()
             .isEqualTo("2");
         assertThat(refVersion.getObjectId()).as("objectId")
-            .isEqualTo(verCommit2.get().getId());
+            .isEqualTo(verCommit2.get().getId().getName());
     }
 
     @Test
@@ -136,10 +138,9 @@ class PreviousVersionFromGitTagRetrieverIntegrationTest {
         );
         assertThat(refVersion).as("refVersion").isNotNull();
         assertThat(refVersion.getVersion()).as("version")
-            .asString()
             .isEqualTo("2");
         assertThat(refVersion.getObjectId()).as("objectId")
-            .isEqualTo(verCommit2.get().getId());
+            .isEqualTo(verCommit2.get().getId().getName());
     }
 
     @Test
@@ -165,10 +166,9 @@ class PreviousVersionFromGitTagRetrieverIntegrationTest {
         );
         assertThat(refVersion).as("refVersion").isNotNull();
         assertThat(refVersion.getVersion()).as("version")
-            .asString()
             .isEqualTo("2");
         assertThat(refVersion.getObjectId()).as("objectId")
-            .isEqualTo(verCommit2.get().getId());
+            .isEqualTo(verCommit2.get().getId().getName());
     }
 
     @Test
@@ -202,10 +202,9 @@ class PreviousVersionFromGitTagRetrieverIntegrationTest {
         );
         assertThat(refVersion).as("refVersion").isNotNull();
         assertThat(refVersion.getVersion()).as("version")
-            .asString()
             .isEqualTo("2");
         assertThat(refVersion.getObjectId()).as("objectId")
-            .isEqualTo(verCommit2.get().getId());
+            .isEqualTo(verCommit2.get().getId().getName());
     }
 
 
