@@ -1,5 +1,6 @@
 package name.remal.gradle_plugins.versions_retriever.git;
 
+import java.io.File;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.UntrackedTask;
@@ -10,9 +11,9 @@ public abstract class RetrievePreviousVersionFromGitTag extends AbstractRetrieve
     @Input
     public abstract ListProperty<String> getTagPatterns();
 
-    protected void retrieveImpl() {
+    protected void retrieveImpl(File resultPropertiesFile) {
         createWorkQueue().submit(RetrievePreviousVersionFromGitTagAction.class, params -> {
-            params.getResultPropertiesFile().set(getResultPropertiesFile());
+            params.getResultPropertiesFile().set(resultPropertiesFile);
             params.getProjectDirectory().set(getProjectLayout().getProjectDirectory());
             params.getTagPatterns().set(getTagPatterns());
         });

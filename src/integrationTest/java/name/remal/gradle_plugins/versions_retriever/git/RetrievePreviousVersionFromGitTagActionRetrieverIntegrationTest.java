@@ -2,10 +2,12 @@ package name.remal.gradle_plugins.versions_retriever.git;
 
 import static java.lang.String.format;
 import static java.nio.file.Files.write;
-import static java.util.Collections.singletonList;
 import static name.remal.gradle_plugins.toolkit.ObjectUtils.defaultValue;
 import static name.remal.gradle_plugins.toolkit.PathUtils.deleteRecursively;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.eclipse.jgit.api.MergeCommand.FastForwardMode.NO_FF;
+import static org.eclipse.jgit.lib.Constants.R_HEADS;
+import static org.eclipse.jgit.lib.Repository.shortenRefName;
 
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -22,8 +24,8 @@ import org.eclipse.jetty.servlet.ServletHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jgit.api.CloneCommand;
 import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.api.MergeCommand.FastForwardMode;
 import org.eclipse.jgit.http.server.GitServlet;
+import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
@@ -33,10 +35,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 @MinSupportedJavaVersion(11)
+@SuppressWarnings("WriteOnlyObject")
 class RetrievePreviousVersionFromGitTagActionRetrieverIntegrationTest {
 
     final RetrievePreviousVersionFromGitTagActionRetriever retriever =
-        new RetrievePreviousVersionFromGitTagActionRetriever(null);
+        RetrievePreviousVersionFromGitTagActionRetriever.builder()
+            .tagPattern(Pattern.compile("ver-(?<version>\\d+)"))
+            .build();
 
     @TempDir
     Path repositoryPath;
@@ -44,6 +49,7 @@ class RetrievePreviousVersionFromGitTagActionRetrieverIntegrationTest {
     @TempDir
     Path serverRepositoryPath;
     Repository serverRepository;
+    String serverRepositoryDefaultBranch;
     Server server;
     String serverHost;
     int serverPort;
@@ -53,6 +59,10 @@ class RetrievePreviousVersionFromGitTagActionRetrieverIntegrationTest {
         serverRepository = FileRepositoryBuilder.create(serverRepositoryPath.resolve(".git").toFile());
         serverRepository.create();
         configureRepositoryConfig(serverRepository);
+        withServerRepository(git -> {
+            serverRepositoryDefaultBranch = git.getRepository().getBranch();
+            addSimpleCommit(git);
+        });
 
         server = new Server();
 
@@ -89,26 +99,20 @@ class RetrievePreviousVersionFromGitTagActionRetrieverIntegrationTest {
         val verCommit2 = new AtomicReference<RevCommit>();
         val verCommitQwerty = new AtomicReference<RevCommit>();
         withServerRepository(git -> {
-            verCommit1.set(addSimpleCommit(git));
-            git.tag().setObjectId(verCommit1.get()).setName("ver-1").call();
-
-            verCommit2.set(addSimpleCommit(git));
-            git.tag().setObjectId(verCommit2.get()).setName("ver-2").call();
-
-            verCommitQwerty.set(addSimpleCommit(git));
-            git.tag().setObjectId(verCommitQwerty.get()).setName("ver-qwerty").call();
+            verCommit1.set(addSimpleCommit(git, "ver-1"));
+            verCommit2.set(addSimpleCommit(git, "ver-2"));
+            verCommitQwerty.set(addSimpleCommit(git, "ver-qwerty"));
         });
 
         cloneRepository();
 
         val refVersion = retriever.retrieve(
-            repositoryPath,
-            singletonList(Pattern.compile("ver-(?<version>\\d+)"))
+            repositoryPath
         );
         assertThat(refVersion).as("refVersion").isNotNull();
-        assertThat(refVersion.getVersion()).as("version")
+        assertThat(refVersion.getVersion()).as("version").asString()
             .isEqualTo("2");
-        assertThat(refVersion.getObjectId()).as("objectId")
+        assertThat(refVersion.getObjectId()).extracting(ObjectId::getName).as("objectId")
             .isEqualTo(verCommit2.get().getId().getName());
     }
 
@@ -127,19 +131,18 @@ class RetrievePreviousVersionFromGitTagActionRetrieverIntegrationTest {
 
         // add tags after clone:
         withServerRepository(git -> {
-            git.tag().setObjectId(verCommit1.get()).setName("ver-1").call();
-            git.tag().setObjectId(verCommit2.get()).setName("ver-2").call();
-            git.tag().setObjectId(verCommitQwerty.get()).setName("ver-qwerty").call();
+            addTag(git, verCommit1.get(), "ver-1");
+            addTag(git, verCommit2.get(), "ver-2");
+            addTag(git, verCommitQwerty.get(), "ver-qwerty");
         });
 
         val refVersion = retriever.retrieve(
-            repositoryPath,
-            singletonList(Pattern.compile("ver-(?<version>\\d+)"))
+            repositoryPath
         );
         assertThat(refVersion).as("refVersion").isNotNull();
-        assertThat(refVersion.getVersion()).as("version")
+        assertThat(refVersion.getVersion()).as("version").asString()
             .isEqualTo("2");
-        assertThat(refVersion.getObjectId()).as("objectId")
+        assertThat(refVersion.getObjectId()).extracting(ObjectId::getName).as("objectId")
             .isEqualTo(verCommit2.get().getId().getName());
     }
 
@@ -148,12 +151,8 @@ class RetrievePreviousVersionFromGitTagActionRetrieverIntegrationTest {
         val verCommit1 = new AtomicReference<RevCommit>();
         val verCommit2 = new AtomicReference<RevCommit>();
         withServerRepository(git -> {
-            verCommit1.set(addSimpleCommit(git));
-            git.tag().setObjectId(verCommit1.get()).setName("ver-1").call();
-
-            verCommit2.set(addSimpleCommit(git));
-            git.tag().setObjectId(verCommit2.get()).setName("ver-2").call();
-
+            verCommit1.set(addSimpleCommit(git, "ver-1"));
+            verCommit2.set(addSimpleCommit(git, "ver-2"));
             addSimpleCommit(git);
             addSimpleCommit(git);
         });
@@ -161,50 +160,215 @@ class RetrievePreviousVersionFromGitTagActionRetrieverIntegrationTest {
         cloneRepositoryPartially(1);
 
         val refVersion = retriever.retrieve(
-            repositoryPath,
-            singletonList(Pattern.compile("ver-(?<version>\\d+)"))
+            repositoryPath
         );
         assertThat(refVersion).as("refVersion").isNotNull();
-        assertThat(refVersion.getVersion()).as("version")
+        assertThat(refVersion.getVersion()).as("version").asString()
             .isEqualTo("2");
-        assertThat(refVersion.getObjectId()).as("objectId")
+        assertThat(refVersion.getObjectId()).extracting(ObjectId::getName).as("objectId")
             .isEqualTo(verCommit2.get().getId().getName());
     }
 
     @Test
-    void mergeCommit() {
-        val verCommit1 = new AtomicReference<RevCommit>();
-        val verCommit2 = new AtomicReference<RevCommit>();
+    void mergeCommitPre1Feature2() {
+        val verCommitPre = new AtomicReference<RevCommit>();
+        val verCommitFeature = new AtomicReference<RevCommit>();
         withServerRepository(git -> {
-            verCommit1.set(addSimpleCommit(git));
-            git.tag().setObjectId(verCommit1.get()).setName("ver-1").call();
+            verCommitPre.set(addSimpleCommit(git, "ver-1"));
 
-            val defaultBranch = git.getRepository().getBranch();
-            git.checkout().setName("feature").setCreateBranch(true).call();
-
+            checkout(git, "feature");
             addSimpleCommit(git);
-
-            verCommit2.set(addSimpleCommit(git));
-            git.tag().setObjectId(verCommit2.get()).setName("ver-2").call();
-
+            verCommitFeature.set(addSimpleCommit(git, "ver-2"));
             val lastFeatureCommit = addSimpleCommit(git);
 
-            git.checkout().setName(defaultBranch).call();
-
-            git.merge().include(lastFeatureCommit).setFastForward(FastForwardMode.NO_FF).setCommit(true).call();
+            checkout(git, serverRepositoryDefaultBranch);
+            git.merge().include(lastFeatureCommit).setFastForward(NO_FF).setCommit(true).call();
         });
 
         cloneRepository();
 
         val refVersion = retriever.retrieve(
-            repositoryPath,
-            singletonList(Pattern.compile("ver-(?<version>\\d+)"))
+            repositoryPath
         );
         assertThat(refVersion).as("refVersion").isNotNull();
-        assertThat(refVersion.getVersion()).as("version")
+        assertThat(refVersion.getVersion()).as("version").asString()
             .isEqualTo("2");
-        assertThat(refVersion.getObjectId()).as("objectId")
-            .isEqualTo(verCommit2.get().getId().getName());
+        assertThat(refVersion.getObjectId()).extracting(ObjectId::getName).as("objectId")
+            .isEqualTo(verCommitFeature.get().getId().getName());
+    }
+
+    @Test
+    void mergeCommitPre2() {
+        val verCommitPre = new AtomicReference<RevCommit>();
+        val verCommitFeature = new AtomicReference<RevCommit>();
+        withServerRepository(git -> {
+            verCommitPre.set(addSimpleCommit(git, "ver-2"));
+
+            checkout(git, "feature");
+            addSimpleCommit(git);
+            verCommitFeature.set(addSimpleCommit(git));
+            val lastFeatureCommit = addSimpleCommit(git);
+
+            checkout(git, serverRepositoryDefaultBranch);
+            git.merge().include(lastFeatureCommit).setFastForward(NO_FF).setCommit(true).call();
+        });
+
+        cloneRepository();
+
+        val refVersion = retriever.retrieve(
+            repositoryPath
+        );
+        assertThat(refVersion).as("refVersion").isNotNull();
+        assertThat(refVersion.getVersion()).as("version").asString()
+            .isEqualTo("2");
+        assertThat(refVersion.getObjectId()).extracting(ObjectId::getName).as("objectId")
+            .isEqualTo(verCommitPre.get().getId().getName());
+    }
+
+    @Test
+    void mergeCommitFeature2() {
+        val verCommitPre = new AtomicReference<RevCommit>();
+        val verCommitFeature = new AtomicReference<RevCommit>();
+        withServerRepository(git -> {
+            verCommitPre.set(addSimpleCommit(git));
+
+            checkout(git, "feature");
+            addSimpleCommit(git);
+            verCommitFeature.set(addSimpleCommit(git, "ver-2"));
+            val lastFeatureCommit = addSimpleCommit(git);
+
+            checkout(git, serverRepositoryDefaultBranch);
+            git.merge().include(lastFeatureCommit).setFastForward(NO_FF).setCommit(true).call();
+        });
+
+        cloneRepository();
+
+        val refVersion = retriever.retrieve(
+            repositoryPath
+        );
+        assertThat(refVersion).as("refVersion").isNotNull();
+        assertThat(refVersion.getVersion()).as("version").asString()
+            .isEqualTo("2");
+        assertThat(refVersion.getObjectId()).extracting(ObjectId::getName).as("objectId")
+            .isEqualTo(verCommitFeature.get().getId().getName());
+    }
+
+    @Test
+    void mergeCommitPre3Pre2Feature1() {
+        val verCommitPre1 = new AtomicReference<RevCommit>();
+        val verCommitPre2 = new AtomicReference<RevCommit>();
+        val verCommitFeature = new AtomicReference<RevCommit>();
+        withServerRepository(git -> {
+            verCommitPre1.set(addSimpleCommit(git, "ver-3"));
+            verCommitPre2.set(addSimpleCommit(git, "ver-2"));
+
+            checkout(git, "feature");
+            addSimpleCommit(git);
+            verCommitFeature.set(addSimpleCommit(git, "ver-1"));
+            val lastFeatureCommit = addSimpleCommit(git);
+
+            checkout(git, serverRepositoryDefaultBranch);
+            git.merge().include(lastFeatureCommit).setFastForward(NO_FF).setCommit(true).call();
+        });
+
+        cloneRepository();
+
+        val refVersion = retriever.retrieve(
+            repositoryPath
+        );
+        assertThat(refVersion).as("refVersion").isNotNull();
+        assertThat(refVersion.getVersion()).as("version").asString()
+            .isEqualTo("2");
+        assertThat(refVersion.getObjectId()).extracting(ObjectId::getName).as("objectId")
+            .isEqualTo(verCommitPre2.get().getId().getName());
+    }
+
+    @Test
+    void mergeCommitPre2Feature1() {
+        val verCommitPre = new AtomicReference<RevCommit>();
+        val verCommitFeature = new AtomicReference<RevCommit>();
+        withServerRepository(git -> {
+            verCommitPre.set(addSimpleCommit(git, "ver-2"));
+
+            checkout(git, "feature");
+            addSimpleCommit(git);
+            verCommitFeature.set(addSimpleCommit(git, "ver-1"));
+            val lastFeatureCommit = addSimpleCommit(git);
+
+            checkout(git, serverRepositoryDefaultBranch);
+            git.merge().include(lastFeatureCommit).setFastForward(NO_FF).setCommit(true).call();
+        });
+
+        cloneRepository();
+
+        val refVersion = retriever.retrieve(
+            repositoryPath
+        );
+        assertThat(refVersion).as("refVersion").isNotNull();
+        assertThat(refVersion.getVersion()).as("version").asString()
+            .isEqualTo("2");
+        assertThat(refVersion.getObjectId()).extracting(ObjectId::getName).as("objectId")
+            .isEqualTo(verCommitPre.get().getId().getName());
+    }
+
+    @Test
+    void mergeCommitPre3Feature1Post2() {
+        val verCommitPre = new AtomicReference<RevCommit>();
+        val verCommitFeature = new AtomicReference<RevCommit>();
+        val verCommitPost = new AtomicReference<RevCommit>();
+        withServerRepository(git -> {
+            verCommitPre.set(addSimpleCommit(git, "ver-3"));
+
+            checkout(git, "feature");
+            addSimpleCommit(git);
+            verCommitFeature.set(addSimpleCommit(git, "ver-1"));
+            val lastFeatureCommit = addSimpleCommit(git);
+
+            checkout(git, serverRepositoryDefaultBranch);
+            verCommitPost.set(addSimpleCommit(git, "ver-2"));
+            git.merge().include(lastFeatureCommit).setFastForward(NO_FF).setCommit(true).call();
+        });
+
+        cloneRepository();
+
+        val refVersion = retriever.retrieve(
+            repositoryPath
+        );
+        assertThat(refVersion).as("refVersion").isNotNull();
+        assertThat(refVersion.getVersion()).as("version").asString()
+            .isEqualTo("2");
+        assertThat(refVersion.getObjectId()).extracting(ObjectId::getName).as("objectId")
+            .isEqualTo(verCommitPost.get().getId().getName());
+    }
+
+    @Test
+    void mergeCommitPre3Feature2Post1() {
+        val verCommitPre = new AtomicReference<RevCommit>();
+        val verCommitFeature = new AtomicReference<RevCommit>();
+        val verCommitPost = new AtomicReference<RevCommit>();
+        withServerRepository(git -> {
+            verCommitPre.set(addSimpleCommit(git, "ver-3"));
+
+            checkout(git, "feature");
+            addSimpleCommit(git);
+            verCommitFeature.set(addSimpleCommit(git, "ver-2"));
+            val lastFeatureCommit = addSimpleCommit(git);
+
+            checkout(git, serverRepositoryDefaultBranch);
+            verCommitPost.set(addSimpleCommit(git, "ver-1"));
+            git.merge().include(lastFeatureCommit).setFastForward(NO_FF).setCommit(true).call();
+        });
+
+        cloneRepository();
+
+        val refVersion = retriever.retrieve(
+            repositoryPath
+        );
+        assertThat(refVersion).as("refVersion").isNotNull();
+        assertThat(refVersion.getVersion()).as("version").asString()
+            .isEqualTo("2");
+        assertThat(refVersion.getObjectId()).extracting(ObjectId::getName).as("objectId")
+            .isEqualTo(verCommitFeature.get().getId().getName());
     }
 
 
@@ -221,12 +385,37 @@ class RetrievePreviousVersionFromGitTagActionRetrieverIntegrationTest {
 
     final AtomicInteger simpleCommitsInServerRepository = new AtomicInteger();
 
+    RevCommit addSimpleCommit(Git git, String tagName) {
+        val commit = addSimpleCommit(git);
+        addTag(git, commit, tagName);
+        return commit;
+    }
+
     @SneakyThrows
     RevCommit addSimpleCommit(Git git) {
         val number = simpleCommitsInServerRepository.incrementAndGet();
         write(serverRepositoryPath.resolve("simple-" + number), new byte[0]);
         git.add().addFilepattern("*").call();
-        return git.commit().setMessage("Simple " + number).setNoVerify(false).call();
+        return git.commit().setMessage("Simple " + number).setNoVerify(true).call();
+    }
+
+    @SneakyThrows
+    void addTag(Git git, RevCommit commit, String tagName) {
+        git.tag().setObjectId(commit).setName(tagName).call();
+    }
+
+    @SneakyThrows
+    void checkout(Git git, String branchName) {
+        val branchRefs = git.getRepository().getRefDatabase().getRefsByPrefix(R_HEADS);
+        for (val branchRef : branchRefs) {
+            val branchRefName = shortenRefName(branchRef.getName());
+            if (branchRefName.equals(branchName)) {
+                git.checkout().setName(branchName).call();
+                return;
+            }
+        }
+
+        git.checkout().setName(branchName).setCreateBranch(true).call();
     }
 
 

@@ -51,13 +51,15 @@ abstract class RetrievePreviousVersionFromGitTagAction
             throw new GradleException("Tag patterns can't be empty");
         }
 
-        val retriever = new RetrievePreviousVersionFromGitTagActionRetriever(null);
-        val refVersion = retriever.retrieve(repositoryPath, tagPatterns);
+        val retriever = RetrievePreviousVersionFromGitTagActionRetriever.builder()
+            .tagPatterns(tagPatterns)
+            .build();
+        val refVersion = retriever.retrieve(repositoryPath);
 
         val resultProperties = new Properties();
         if (refVersion != null) {
-            resultProperties.setProperty(RETRIEVED_VERSION_PROPERTY, refVersion.getVersion());
-            resultProperties.setProperty(RETRIEVED_COMMIT_HASH_PROPERTY, refVersion.getObjectId());
+            resultProperties.setProperty(RETRIEVED_VERSION_PROPERTY, refVersion.getVersion().toString());
+            resultProperties.setProperty(RETRIEVED_COMMIT_HASH_PROPERTY, refVersion.getObjectId().getName());
         }
         storeProperties(resultProperties, resultPropertiesPath);
     }
