@@ -48,7 +48,6 @@ public abstract class AbstractRetrieveFromMaven extends AbstractRetrieveVersions
         action.execute(repositories);
     }
 
-    @Input
     @Nested
     protected abstract MapProperty<String, MavenRepository> getRepositoryMap();
 
