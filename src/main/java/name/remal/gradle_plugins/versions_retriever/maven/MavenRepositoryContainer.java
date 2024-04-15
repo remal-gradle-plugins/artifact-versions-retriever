@@ -42,6 +42,10 @@ public interface MavenRepositoryContainer {
         });
     }
 
+    /**
+     * @deprecated JFrog announced JCenter's <a href="https://blog.gradle.org/jcenter-shutdown">sunset</a> in February 2021.
+     *     Use {@link #mavenCentral()} instead.
+     */
     @Deprecated
     default void jcenter() {
         maven(repo -> {

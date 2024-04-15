@@ -4,10 +4,11 @@ import static java.lang.String.format;
 import static java.nio.file.Files.write;
 import static name.remal.gradle_plugins.toolkit.ObjectUtils.defaultValue;
 import static name.remal.gradle_plugins.toolkit.PathUtils.deleteRecursively;
-import static org.assertj.core.api.Assertions.assertThat;
+import static name.remal.gradle_plugins.versions_retriever.Assertions.assertThat;
 import static org.eclipse.jgit.api.MergeCommand.FastForwardMode.NO_FF;
 import static org.eclipse.jgit.lib.Constants.R_HEADS;
 import static org.eclipse.jgit.lib.Repository.shortenRefName;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -25,7 +26,6 @@ import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jgit.api.CloneCommand;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.http.server.GitServlet;
-import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
@@ -36,10 +36,10 @@ import org.junit.jupiter.api.io.TempDir;
 
 @MinSupportedJavaVersion(11)
 @SuppressWarnings("WriteOnlyObject")
-class RetrievePreviousVersionFromGitTagActionRetrieverIntegrationTest {
+class RetrievePreviousVersionFromGitTagRetrieverIntegrationTest {
 
-    final RetrievePreviousVersionFromGitTagActionRetriever retriever =
-        RetrievePreviousVersionFromGitTagActionRetriever.builder()
+    final RetrievePreviousVersionFromGitTagRetriever retriever =
+        RetrievePreviousVersionFromGitTagRetriever.builder()
             .tagPattern(Pattern.compile("ver-(?<version>\\d+)"))
             .build();
 
@@ -102,18 +102,18 @@ class RetrievePreviousVersionFromGitTagActionRetrieverIntegrationTest {
             verCommit1.set(addSimpleCommit(git, "ver-1"));
             verCommit2.set(addSimpleCommit(git, "ver-2"));
             verCommitQwerty.set(addSimpleCommit(git, "ver-qwerty"));
+            addSimpleCommit(git);
         });
 
         cloneRepository();
 
-        val refVersion = retriever.retrieve(
-            repositoryPath
-        );
-        assertThat(refVersion).as("refVersion").isNotNull();
-        assertThat(refVersion.getVersion()).as("version").asString()
-            .isEqualTo("2");
-        assertThat(refVersion.getObjectId()).extracting(ObjectId::getName).as("objectId")
-            .isEqualTo(verCommit2.get().getId().getName());
+        val refVersion = retriever.retrieve(repositoryPath);
+
+        assertNotNull(refVersion);
+        assertThat(refVersion)
+            .hasVersion("2")
+            .hasGitCommitHash(verCommit2.get().getId().getName())
+            .hasGitTag("ver-2");
     }
 
     @Test
@@ -125,6 +125,7 @@ class RetrievePreviousVersionFromGitTagActionRetrieverIntegrationTest {
             verCommit1.set(addSimpleCommit(git));
             verCommit2.set(addSimpleCommit(git));
             verCommitQwerty.set(addSimpleCommit(git));
+            addSimpleCommit(git);
         });
 
         cloneRepository();
@@ -136,14 +137,13 @@ class RetrievePreviousVersionFromGitTagActionRetrieverIntegrationTest {
             addTag(git, verCommitQwerty.get(), "ver-qwerty");
         });
 
-        val refVersion = retriever.retrieve(
-            repositoryPath
-        );
-        assertThat(refVersion).as("refVersion").isNotNull();
-        assertThat(refVersion.getVersion()).as("version").asString()
-            .isEqualTo("2");
-        assertThat(refVersion.getObjectId()).extracting(ObjectId::getName).as("objectId")
-            .isEqualTo(verCommit2.get().getId().getName());
+        val refVersion = retriever.retrieve(repositoryPath);
+
+        assertNotNull(refVersion);
+        assertThat(refVersion)
+            .hasVersion("2")
+            .hasGitCommitHash(verCommit2.get().getId().getName())
+            .hasGitTag("ver-2");
     }
 
     @Test
@@ -159,14 +159,33 @@ class RetrievePreviousVersionFromGitTagActionRetrieverIntegrationTest {
 
         cloneRepositoryPartially(1);
 
-        val refVersion = retriever.retrieve(
-            repositoryPath
-        );
-        assertThat(refVersion).as("refVersion").isNotNull();
-        assertThat(refVersion.getVersion()).as("version").asString()
-            .isEqualTo("2");
-        assertThat(refVersion.getObjectId()).extracting(ObjectId::getName).as("objectId")
-            .isEqualTo(verCommit2.get().getId().getName());
+        val refVersion = retriever.retrieve(repositoryPath);
+
+        assertNotNull(refVersion);
+        assertThat(refVersion)
+            .hasVersion("2")
+            .hasGitCommitHash(verCommit2.get().getId().getName())
+            .hasGitTag("ver-2");
+    }
+
+    @Test
+    void currentCommitIsSkipped() {
+        val verCommit1 = new AtomicReference<RevCommit>();
+        val verCommit2 = new AtomicReference<RevCommit>();
+        withServerRepository(git -> {
+            verCommit1.set(addSimpleCommit(git, "ver-1"));
+            verCommit2.set(addSimpleCommit(git, "ver-2"));
+        });
+
+        cloneRepository();
+
+        val refVersion = retriever.retrieve(repositoryPath);
+
+        assertNotNull(refVersion);
+        assertThat(refVersion)
+            .hasVersion("1")
+            .hasGitCommitHash(verCommit1.get().getId().getName())
+            .hasGitTag("ver-1");
     }
 
     @Test
@@ -183,18 +202,18 @@ class RetrievePreviousVersionFromGitTagActionRetrieverIntegrationTest {
 
             checkout(git, serverRepositoryDefaultBranch);
             git.merge().include(lastFeatureCommit).setFastForward(NO_FF).setCommit(true).call();
+            addSimpleCommit(git);
         });
 
         cloneRepository();
 
-        val refVersion = retriever.retrieve(
-            repositoryPath
-        );
-        assertThat(refVersion).as("refVersion").isNotNull();
-        assertThat(refVersion.getVersion()).as("version").asString()
-            .isEqualTo("2");
-        assertThat(refVersion.getObjectId()).extracting(ObjectId::getName).as("objectId")
-            .isEqualTo(verCommitFeature.get().getId().getName());
+        val refVersion = retriever.retrieve(repositoryPath);
+
+        assertNotNull(refVersion);
+        assertThat(refVersion)
+            .hasVersion("2")
+            .hasGitCommitHash(verCommitFeature.get().getId().getName())
+            .hasGitTag("ver-2");
     }
 
     @Test
@@ -211,18 +230,18 @@ class RetrievePreviousVersionFromGitTagActionRetrieverIntegrationTest {
 
             checkout(git, serverRepositoryDefaultBranch);
             git.merge().include(lastFeatureCommit).setFastForward(NO_FF).setCommit(true).call();
+            addSimpleCommit(git);
         });
 
         cloneRepository();
 
-        val refVersion = retriever.retrieve(
-            repositoryPath
-        );
-        assertThat(refVersion).as("refVersion").isNotNull();
-        assertThat(refVersion.getVersion()).as("version").asString()
-            .isEqualTo("2");
-        assertThat(refVersion.getObjectId()).extracting(ObjectId::getName).as("objectId")
-            .isEqualTo(verCommitPre.get().getId().getName());
+        val refVersion = retriever.retrieve(repositoryPath);
+
+        assertNotNull(refVersion);
+        assertThat(refVersion)
+            .hasVersion("2")
+            .hasGitCommitHash(verCommitPre.get().getId().getName())
+            .hasGitTag("ver-2");
     }
 
     @Test
@@ -239,18 +258,18 @@ class RetrievePreviousVersionFromGitTagActionRetrieverIntegrationTest {
 
             checkout(git, serverRepositoryDefaultBranch);
             git.merge().include(lastFeatureCommit).setFastForward(NO_FF).setCommit(true).call();
+            addSimpleCommit(git);
         });
 
         cloneRepository();
 
-        val refVersion = retriever.retrieve(
-            repositoryPath
-        );
-        assertThat(refVersion).as("refVersion").isNotNull();
-        assertThat(refVersion.getVersion()).as("version").asString()
-            .isEqualTo("2");
-        assertThat(refVersion.getObjectId()).extracting(ObjectId::getName).as("objectId")
-            .isEqualTo(verCommitFeature.get().getId().getName());
+        val refVersion = retriever.retrieve(repositoryPath);
+
+        assertNotNull(refVersion);
+        assertThat(refVersion)
+            .hasVersion("2")
+            .hasGitCommitHash(verCommitFeature.get().getId().getName())
+            .hasGitTag("ver-2");
     }
 
     @Test
@@ -269,18 +288,18 @@ class RetrievePreviousVersionFromGitTagActionRetrieverIntegrationTest {
 
             checkout(git, serverRepositoryDefaultBranch);
             git.merge().include(lastFeatureCommit).setFastForward(NO_FF).setCommit(true).call();
+            addSimpleCommit(git);
         });
 
         cloneRepository();
 
-        val refVersion = retriever.retrieve(
-            repositoryPath
-        );
-        assertThat(refVersion).as("refVersion").isNotNull();
-        assertThat(refVersion.getVersion()).as("version").asString()
-            .isEqualTo("2");
-        assertThat(refVersion.getObjectId()).extracting(ObjectId::getName).as("objectId")
-            .isEqualTo(verCommitPre2.get().getId().getName());
+        val refVersion = retriever.retrieve(repositoryPath);
+
+        assertNotNull(refVersion);
+        assertThat(refVersion)
+            .hasVersion("2")
+            .hasGitCommitHash(verCommitPre2.get().getId().getName())
+            .hasGitTag("ver-2");
     }
 
     @Test
@@ -297,6 +316,7 @@ class RetrievePreviousVersionFromGitTagActionRetrieverIntegrationTest {
 
             checkout(git, serverRepositoryDefaultBranch);
             git.merge().include(lastFeatureCommit).setFastForward(NO_FF).setCommit(true).call();
+            addSimpleCommit(git);
         });
 
         cloneRepository();
@@ -304,11 +324,12 @@ class RetrievePreviousVersionFromGitTagActionRetrieverIntegrationTest {
         val refVersion = retriever.retrieve(
             repositoryPath
         );
-        assertThat(refVersion).as("refVersion").isNotNull();
-        assertThat(refVersion.getVersion()).as("version").asString()
-            .isEqualTo("2");
-        assertThat(refVersion.getObjectId()).extracting(ObjectId::getName).as("objectId")
-            .isEqualTo(verCommitPre.get().getId().getName());
+
+        assertNotNull(refVersion);
+        assertThat(refVersion)
+            .hasVersion("2")
+            .hasGitCommitHash(verCommitPre.get().getId().getName())
+            .hasGitTag("ver-2");
     }
 
     @Test
@@ -327,18 +348,18 @@ class RetrievePreviousVersionFromGitTagActionRetrieverIntegrationTest {
             checkout(git, serverRepositoryDefaultBranch);
             verCommitPost.set(addSimpleCommit(git, "ver-2"));
             git.merge().include(lastFeatureCommit).setFastForward(NO_FF).setCommit(true).call();
+            addSimpleCommit(git);
         });
 
         cloneRepository();
 
-        val refVersion = retriever.retrieve(
-            repositoryPath
-        );
-        assertThat(refVersion).as("refVersion").isNotNull();
-        assertThat(refVersion.getVersion()).as("version").asString()
-            .isEqualTo("2");
-        assertThat(refVersion.getObjectId()).extracting(ObjectId::getName).as("objectId")
-            .isEqualTo(verCommitPost.get().getId().getName());
+        val refVersion = retriever.retrieve(repositoryPath);
+
+        assertNotNull(refVersion);
+        assertThat(refVersion)
+            .hasVersion("2")
+            .hasGitCommitHash(verCommitPost.get().getId().getName())
+            .hasGitTag("ver-2");
     }
 
     @Test
@@ -357,18 +378,18 @@ class RetrievePreviousVersionFromGitTagActionRetrieverIntegrationTest {
             checkout(git, serverRepositoryDefaultBranch);
             verCommitPost.set(addSimpleCommit(git, "ver-1"));
             git.merge().include(lastFeatureCommit).setFastForward(NO_FF).setCommit(true).call();
+            addSimpleCommit(git);
         });
 
         cloneRepository();
 
-        val refVersion = retriever.retrieve(
-            repositoryPath
-        );
-        assertThat(refVersion).as("refVersion").isNotNull();
-        assertThat(refVersion.getVersion()).as("version").asString()
-            .isEqualTo("2");
-        assertThat(refVersion.getObjectId()).extracting(ObjectId::getName).as("objectId")
-            .isEqualTo(verCommitFeature.get().getId().getName());
+        val refVersion = retriever.retrieve(repositoryPath);
+
+        assertNotNull(refVersion);
+        assertThat(refVersion)
+            .hasVersion("2")
+            .hasGitCommitHash(verCommitFeature.get().getId().getName())
+            .hasGitTag("ver-2");
     }
 
 

@@ -3,14 +3,11 @@ package name.remal.gradle_plugins.versions_retriever.git;
 import static java.nio.file.Files.write;
 import static java.util.stream.Collectors.toList;
 import static lombok.AccessLevel.PUBLIC;
+import static name.remal.gradle_plugins.toolkit.PathUtils.createParentDirectories;
 import static name.remal.gradle_plugins.toolkit.PathUtils.normalizePath;
-import static name.remal.gradle_plugins.toolkit.PropertiesUtils.storeProperties;
 import static name.remal.gradle_plugins.toolkit.git.GitUtils.findGitRepositoryRootFor;
-import static name.remal.gradle_plugins.versions_retriever.AbstractRetrieveVersions.RETRIEVED_COMMIT_HASH_PROPERTY;
-import static name.remal.gradle_plugins.versions_retriever.AbstractRetrieveVersions.RETRIEVED_VERSION_PROPERTY;
 import static name.remal.gradle_plugins.versions_retriever.git.GitUtils.GIT_ERROR_LOG_LEVEL;
 
-import java.util.Properties;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
 import lombok.CustomLog;
@@ -31,6 +28,7 @@ abstract class RetrievePreviousVersionFromGitTagAction
     public void execute() {
         val params = getParameters();
         val resultPropertiesPath = normalizePath(params.getResultPropertiesFile().get().getAsFile().toPath());
+        createParentDirectories(resultPropertiesPath);
 
         val projectDir = params.getProjectDirectory().getAsFile().get();
         val repositoryPath = findGitRepositoryRootFor(projectDir.toPath());
@@ -51,17 +49,17 @@ abstract class RetrievePreviousVersionFromGitTagAction
             throw new GradleException("Tag patterns can't be empty");
         }
 
-        val retriever = RetrievePreviousVersionFromGitTagActionRetriever.builder()
+        val retriever = RetrievePreviousVersionFromGitTagRetriever.builder()
             .tagPatterns(tagPatterns)
             .build();
         val refVersion = retriever.retrieve(repositoryPath);
 
-        val resultProperties = new Properties();
-        if (refVersion != null) {
-            resultProperties.setProperty(RETRIEVED_VERSION_PROPERTY, refVersion.getVersion().toString());
-            resultProperties.setProperty(RETRIEVED_COMMIT_HASH_PROPERTY, refVersion.getObjectId().getName());
+        if (refVersion == null) {
+            write(resultPropertiesPath, new byte[0]);
+            return;
         }
-        storeProperties(resultProperties, resultPropertiesPath);
+
+        refVersion.store(resultPropertiesPath);
     }
 
 

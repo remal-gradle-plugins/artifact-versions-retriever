@@ -8,6 +8,7 @@ import static name.remal.gradle_plugins.toolkit.ObjectUtils.defaultValue;
 import static name.remal.gradle_plugins.toolkit.ObjectUtils.isEmpty;
 import static name.remal.gradle_plugins.toolkit.ObjectUtils.isNotEmpty;
 import static name.remal.gradle_plugins.toolkit.PredicateUtils.not;
+import static name.remal.gradle_plugins.toolkit.SneakyThrowUtils.sneakyThrows;
 import static name.remal.gradle_plugins.versions_retriever.git.GitUtils.FETCH_TIMEOUT;
 import static name.remal.gradle_plugins.versions_retriever.git.GitUtils.GIT_DEFAULT_LOG_LEVEL;
 import static name.remal.gradle_plugins.versions_retriever.git.GitUtils.GIT_ERROR_LOG_LEVEL;
@@ -21,6 +22,7 @@ import static org.eclipse.jgit.revwalk.RevFlag.UNINTERESTING;
 
 import com.google.common.annotations.VisibleForTesting;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,12 +32,15 @@ import java.util.TreeSet;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 import lombok.Builder;
+import lombok.Builder.Default;
 import lombok.CustomLog;
 import lombok.RequiredArgsConstructor;
 import lombok.Singular;
 import lombok.SneakyThrows;
 import lombok.val;
+import name.remal.gradle_plugins.toolkit.SneakyThrowUtils.SneakyThrowsConsumer;
 import name.remal.gradle_plugins.toolkit.Version;
+import name.remal.gradle_plugins.versions_retriever.VersionInfo;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.ObjectId;
@@ -43,6 +48,7 @@ import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.SubmoduleConfig.FetchRecurseSubmodulesMode;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.revwalk.RevSort;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.eclipse.jgit.transport.RemoteConfig;
@@ -52,10 +58,13 @@ import org.gradle.initialization.BuildCancellationToken;
 @Builder
 @RequiredArgsConstructor(access = PRIVATE)
 @CustomLog
-class RetrievePreviousVersionFromGitTagActionRetriever {
+class RetrievePreviousVersionFromGitTagRetriever {
 
     @Singular("tagPattern")
     private final List<Pattern> tagPatterns;
+
+    @Default
+    private final boolean ignoreCurrentCommit = true;
 
     @Nullable
     private final BuildCancellationToken buildCancellationToken;
@@ -64,7 +73,7 @@ class RetrievePreviousVersionFromGitTagActionRetriever {
     @Nullable
     @VisibleForTesting
     @SneakyThrows
-    public GitRefVersion retrieve(Path repositoryPath) {
+    public VersionInfo retrieve(Path repositoryPath) {
         logger.log(
             GIT_DEFAULT_LOG_LEVEL,
             "Retrieving previous version for Git repository {}",
@@ -80,7 +89,7 @@ class RetrievePreviousVersionFromGitTagActionRetriever {
 
     @Nullable
     @SneakyThrows
-    private GitRefVersion retrieve(Git git) {
+    private VersionInfo retrieve(Git git) {
         val fetchRemote = getFetchRemote(git);
         if (fetchRemote == null) {
             logger.log(
@@ -116,7 +125,7 @@ class RetrievePreviousVersionFromGitTagActionRetriever {
         }
 
 
-        GitRefVersion commitVersion = retrieveImpl(repository);
+        VersionInfo commitVersion = retrieveImpl(repository);
 
         if (commitVersion == null && isNotEmpty(repository.getObjectDatabase().getShallowCommits())) {
             int depth = 1000;
@@ -171,8 +180,10 @@ class RetrievePreviousVersionFromGitTagActionRetriever {
 
     @Nullable
     @SneakyThrows
-    private GitRefVersion retrieveImpl(Repository repository) {
+    @SuppressWarnings("java:S3776")
+    private VersionInfo retrieveImpl(Repository repository) {
         try (val walk = new RevWalk(repository)) {
+            walk.sort(RevSort.NONE);
             walk.setRetainBody(false);
 
             val headRef = repository.getRefDatabase().exactRef(HEAD);
@@ -181,94 +192,86 @@ class RetrievePreviousVersionFromGitTagActionRetriever {
 
             val allRefsByPeeledObjectId = repository.getAllRefsByPeeledObjectId();
 
-            val rootCommit = walk.next();
-            return retrieveImpl(walk, rootCommit, allRefsByPeeledObjectId);
+            val commitQueue = new ArrayDeque<RevCommit>();
+            val addParentsToQueue = sneakyThrows((SneakyThrowsConsumer<RevCommit>) commit -> {
+                for (int parentIndex = 0; parentIndex < commit.getParentCount(); ++parentIndex) {
+                    val parentCommit = commit.getParent(parentIndex);
+                    walk.parseHeaders(parentCommit);
+                    commitQueue.addLast(parentCommit);
+                }
+            });
+
+            if (ignoreCurrentCommit) {
+                addParentsToQueue.accept(walk.next());
+            } else {
+                commitQueue.addLast(walk.next());
+            }
+
+            VersionInfo maxRefVersion = null;
+            while (true) {
+                val commit = commitQueue.pollFirst();
+                if (commit == null) {
+                    break;
+                }
+
+                if (commit.has(UNINTERESTING)) {
+                    continue;
+                } else {
+                    commit.add(UNINTERESTING);
+                }
+
+                val tagRefVersion = getTagRefVersion(commit, allRefsByPeeledObjectId);
+                if (tagRefVersion != null) {
+                    if (maxRefVersion == null || maxRefVersion.compareTo(tagRefVersion) <= 0) {
+                        maxRefVersion = tagRefVersion;
+                    }
+                    continue;
+                }
+
+                addParentsToQueue.accept(commit);
+            }
+
+            return maxRefVersion;
         }
     }
 
     @Nullable
-    @SneakyThrows
     @SuppressWarnings("java:S3776")
-    private GitRefVersion retrieveImpl(
-        RevWalk walk,
+    private VersionInfo getTagRefVersion(
         RevCommit commit,
         Map<AnyObjectId, Set<Ref>> allRefsByPeeledObjectId
     ) {
-        GitRefVersion maxRefVersion = null;
+        VersionInfo maxTagRefVersion = null;
 
-        while (true) {
-            if (commit.has(UNINTERESTING)) {
-                return maxRefVersion;
-            } else {
-                commit.add(UNINTERESTING);
-            }
-
-            GitRefVersion maxTagRefVersion = null;
-            val commitRefs = allRefsByPeeledObjectId.getOrDefault(commit.getId(), emptySet());
-            ref:
-            for (val ref : commitRefs) {
-                val refName = ref.getName();
-                if (isNotEmpty(refName) && refName.startsWith(R_TAGS)) {
-                    val refShortenName = refName.substring(R_TAGS.length());
-                    for (val tagPattern : tagPatterns) {
-                        val matcher = tagPattern.matcher(refShortenName);
-                        if (matcher.matches()) {
-                            val versionString = matcher.group("version");
-                            if (isEmpty(versionString)) {
-                                continue;
-                            }
-
-                            val version = Version.parse(versionString);
-                            val refVersion = new GitRefVersion(
-                                version,
-                                commit.getId()
-                            );
-                            if (maxTagRefVersion == null) {
-                                maxTagRefVersion = refVersion;
-                            } else if (maxTagRefVersion.compareTo(refVersion) < 0) {
-                                maxTagRefVersion = refVersion;
-                            }
-
-                            continue ref;
+        val commitRefs = allRefsByPeeledObjectId.getOrDefault(commit.getId(), emptySet());
+        for (val ref : commitRefs) {
+            val refName = ref.getName();
+            if (isNotEmpty(refName) && refName.startsWith(R_TAGS)) {
+                val refShortenName = refName.substring(R_TAGS.length());
+                forTagPatterns:
+                for (val tagPattern : tagPatterns) {
+                    val matcher = tagPattern.matcher(refShortenName);
+                    if (matcher.matches()) {
+                        val versionString = matcher.group("version");
+                        if (isEmpty(versionString)) {
+                            continue;
                         }
+
+                        val refVersion = VersionInfo.builder()
+                            .version(versionString)
+                            .gitCommitHash(commit.getId().getName())
+                            .gitTag(refShortenName)
+                            .build();
+                        if (maxTagRefVersion == null || maxTagRefVersion.compareTo(refVersion) < 0) {
+                            maxTagRefVersion = refVersion;
+                        }
+                        break forTagPatterns;
                     }
                 }
             }
-
-            if (maxTagRefVersion != null) {
-                if (maxRefVersion == null || maxRefVersion.compareTo(maxTagRefVersion) <= 0) {
-                    return maxTagRefVersion;
-                } else {
-                    return maxRefVersion;
-                }
-            }
-
-            RevCommit nextCommit = null;
-            for (int parentIndex = 0; parentIndex < commit.getParentCount(); ++parentIndex) {
-                val parentCommit = commit.getParent(parentIndex);
-                walk.parseHeaders(parentCommit);
-
-                if (parentIndex == 0) {
-                    nextCommit = parentCommit;
-                    continue;
-                }
-
-                val parentRefVersion = retrieveImpl(walk, parentCommit, allRefsByPeeledObjectId);
-                if (parentRefVersion == null) {
-                    continue;
-                }
-
-                if (maxRefVersion == null || maxRefVersion.compareTo(parentRefVersion) < 0) {
-                    maxRefVersion = parentRefVersion;
-                }
-            }
-
-            if (nextCommit != null) {
-                commit = nextCommit;
-            } else {
-                return maxRefVersion;
-            }
         }
+
+        return maxTagRefVersion;
     }
 
     @SneakyThrows

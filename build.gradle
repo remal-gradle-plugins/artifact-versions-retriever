@@ -2,6 +2,7 @@ import static org.objectweb.asm.ClassReader.SKIP_CODE
 import static org.objectweb.asm.ClassReader.SKIP_DEBUG
 import static org.objectweb.asm.ClassReader.SKIP_FRAMES
 
+import com.github.fhermansson.gradle.assertj.plugin.GenerateAssertions
 import org.objectweb.asm.ClassReader
 import org.objectweb.asm.tree.ClassNode
 
@@ -13,7 +14,8 @@ buildscript {
     String rootSnapshotVersion = project.ext.rootSnapshotVersion = '0-SNAPSHOT'
     dependencies {
         //classpath("$rootGroupId:$rootArtifactId:$rootSnapshotVersion") { version { strictly(rootSnapshotVersion) } }
-        classpath 'name.remal.gradle-plugins.toolkit:build-logic:0.63.15'
+        classpath 'name.remal.gradle-plugins.toolkit:build-logic:0.63.17'
+        classpath 'com.github.fhermansson:assertj-gradle-plugin:1.1.5'
     }
     repositories {
         mavenCentral()
@@ -58,6 +60,41 @@ configurations.create('jgit') { conf ->
 dependencies {
     jgit "org.eclipse.jgit:org.eclipse.jgit:$jgitVersion"
     jgit "org.eclipse.jgit:org.eclipse.jgit.ssh.apache:$jgitVersion"
+}
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+apply plugin: 'java-test-fixtures'
+apply plugin: 'com.github.fhermansson.assertj-generator'
+
+dependencies {
+    testImplementation 'org.assertj:assertj-core'
+    testFixturesImplementation 'org.assertj:assertj-core'
+}
+
+assertjGenerator {
+    testSourceSet = sourceSets.testFixtures
+    outputDir = 'build/generated/assertj'
+    classOrPackageNames = [
+        'name.remal.gradle_plugins.versions_retriever.VersionInfo',
+    ]
+}
+
+tasks.withType(GenerateAssertions).configureEach {
+    group = 'other'
+    doLast {
+        project.files(outputDir).asFileTree
+            .matching { include('**/*.java') }
+            .visit { FileVisitDetails details ->
+                if (details.directory) {
+                    return
+                }
+
+                String content = details.file.getText('UTF-8')
+                content = content.replaceAll(/@javax\.annotation\.Generated(\([^)]*\))?/, '@org.gradle.api.Generated')
+                details.file.setText(content, 'UTF-8')
+            }
+    }
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
