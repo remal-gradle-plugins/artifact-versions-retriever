@@ -91,7 +91,9 @@ tasks.withType(GenerateAssertions).configureEach {
                 }
 
                 String content = details.file.getText('UTF-8')
-                content = content.replaceAll(/@javax\.annotation\.Generated(\([^)]*\))?/, '@org.gradle.api.Generated')
+                content = content
+                    .replaceAll(/@javax\.annotation\.Generated(\([^)]*\))?/, '@org.gradle.api.Generated')
+                    .replaceAll(/(([\r\n]+)public class )/, '$2@SuppressWarnings("all")$1')
                 details.file.setText(content, 'UTF-8')
             }
     }
