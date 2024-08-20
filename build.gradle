@@ -105,7 +105,7 @@ testSourceSets.create('integrationTest')
 
 dependencies {
     integrationTestImplementation "org.eclipse.jgit:org.eclipse.jgit.http.server:$jgitVersion"
-    integrationTestImplementation 'org.eclipse.jetty:jetty-servlet:10.0.22'
+    integrationTestImplementation 'org.eclipse.jetty:jetty-servlet:10.0.23'
 }
 
 tasks.named('integrationTest', Test) { // TODO: remove it
