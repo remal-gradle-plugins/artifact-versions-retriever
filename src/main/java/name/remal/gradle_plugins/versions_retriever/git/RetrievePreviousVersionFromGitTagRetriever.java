@@ -89,6 +89,7 @@ class RetrievePreviousVersionFromGitTagRetriever {
 
     @Nullable
     @SneakyThrows
+    @SuppressWarnings("JavaDurationGetSecondsToToSeconds")
     private VersionInfo retrieve(Git git) {
         val fetchRemote = getFetchRemote(git);
         if (fetchRemote == null) {
@@ -110,7 +111,7 @@ class RetrievePreviousVersionFromGitTagRetriever {
             .setRecurseSubmodules(FetchRecurseSubmodulesMode.NO)
             .setRemote(fetchRemoteName)
             .setProgressMonitor(new GradleProgressMonitor(buildCancellationToken))
-            .setTimeout(toIntExact(FETCH_TIMEOUT.toSeconds()))
+            .setTimeout(toIntExact(FETCH_TIMEOUT.getSeconds()))
             .call();
 
         val repository = git.getRepository();
@@ -141,7 +142,7 @@ class RetrievePreviousVersionFromGitTagRetriever {
                 .setRecurseSubmodules(FetchRecurseSubmodulesMode.NO)
                 .setRemote(fetchRemoteName)
                 .setProgressMonitor(new GradleProgressMonitor(buildCancellationToken))
-                .setTimeout(toIntExact(FETCH_TIMEOUT.toSeconds()))
+                .setTimeout(toIntExact(FETCH_TIMEOUT.getSeconds()))
                 .call();
 
             commitVersion = retrieveImpl(repository);
@@ -159,7 +160,7 @@ class RetrievePreviousVersionFromGitTagRetriever {
                 .setRecurseSubmodules(FetchRecurseSubmodulesMode.NO)
                 .setRemote(fetchRemoteName)
                 .setProgressMonitor(new GradleProgressMonitor(buildCancellationToken))
-                .setTimeout(toIntExact(FETCH_TIMEOUT.toSeconds()))
+                .setTimeout(toIntExact(FETCH_TIMEOUT.getSeconds()))
                 .call();
 
             commitVersion = retrieveImpl(repository);
