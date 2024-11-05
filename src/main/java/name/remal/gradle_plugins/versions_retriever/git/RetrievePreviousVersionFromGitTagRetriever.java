@@ -89,6 +89,7 @@ class RetrievePreviousVersionFromGitTagRetriever {
 
     @Nullable
     @SneakyThrows
+    @SuppressWarnings("JavaDurationGetSecondsToToSeconds")
     private VersionInfo retrieve(Git git) {
         val fetchRemote = getFetchRemote(git);
         if (fetchRemote == null) {
