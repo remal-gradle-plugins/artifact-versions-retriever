@@ -48,7 +48,7 @@ gradlePlugin {
     }
 }
 
-String jgitVersion = "6.10.0.202406032230-r"
+String jgitVersion = "7.0.0.202409031743-r"
 
 configurations.create('jgit') { conf ->
     conf.canBeResolved = true
